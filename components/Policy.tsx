@@ -21,7 +21,6 @@ const Policy: React.FC = () => {
     let highlighted = desc
       .replace('35% - 45%', '<span class="text-red-600 font-black text-xl">35% - 45%</span>')
       .replace('20 thùng', '<span class="text-black font-black bg-yellow-200 px-1 text-lg">20 thùng</span>')
-      .replace('24 triệu', '<span class="text-black font-black text-lg">24 triệu</span>')
       .replace('0đ', '<span class="text-red-600 font-black text-xl">0đ</span>')
       .replace('Mua 10 tặng 1', '<span class="text-white bg-red-600 px-2 font-black rounded text-lg">MUA 10 TẶNG 1</span>');
     
@@ -57,13 +56,13 @@ const Policy: React.FC = () => {
         </div>
 
         {/* FOMO Section */}
-        <div className="relative mt-16 bg-black text-white p-8 md:p-12 rounded-[2.5rem] max-w-5xl mx-auto border-4 border-white text-center shadow-[10px_10px_0px_0px_rgba(255,0,0,1)] animate-pulse-fast">
+        <div className="relative mt-24 md:mt-16 bg-black text-white p-8 md:p-12 rounded-[2.5rem] max-w-5xl mx-auto border-4 border-white text-center shadow-[10px_10px_0px_0px_rgba(255,0,0,1)] animate-pulse-fast">
           
           {/* Background pattern */}
           <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'radial-gradient(circle, white 2px, transparent 2px)', backgroundSize: '20px 20px'}}></div>
 
-          {/* Badge */}
-          <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-red-600 text-white font-bold px-8 py-3 rounded-full border-4 border-white animate-bounce shadow-lg z-10 whitespace-nowrap">
+          {/* Badge - Responsive sizing to prevent clipping on mobile */}
+          <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-red-600 text-white font-bold px-6 py-2 md:px-8 md:py-3 text-xs md:text-base rounded-full border-4 border-white animate-bounce shadow-lg z-10 w-max max-w-[90%] text-center leading-tight whitespace-normal md:whitespace-nowrap">
             ƯU ĐÃI ĐỘC QUYỀN THÁNG NÀY
           </div>
 

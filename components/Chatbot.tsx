@@ -5,7 +5,7 @@ const QA_DATA = [
   {
     id: 'price',
     question: '💰 Cho tôi xin bảng giá đại lý?',
-    answer: 'Chào bạn! UHi có chính sách chiết khấu lên đến 45%. Vốn khởi điểm chỉ từ 24 triệu đồng (20 thùng). Bạn vui lòng để lại SĐT hoặc Zalo tại mục Đăng Ký để nhận bảng giá chi tiết nhé!'
+    answer: 'Chào bạn! UHi có chính sách chiết khấu lên đến 45%. Vốn khởi điểm chỉ từ 20 thùng. Bạn vui lòng để lại SĐT hoặc Zalo tại mục Đăng Ký để nhận bảng giá chi tiết nhé!'
   },
   {
     id: 'shipping',

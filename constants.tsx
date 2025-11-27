@@ -69,7 +69,7 @@ export const BENEFITS: Benefit[] = [
   },
   {
     title: 'Vốn Khởi Điểm Thấp',
-    description: 'Đơn tối thiểu chỉ 20 thùng (~24 triệu VNĐ). Hỗ trợ đơn nhỏ để test thị trường.',
+    description: 'Đơn tối thiểu chỉ 20 thùng. Hỗ trợ đơn nhỏ để test thị trường.',
     icon: 'package'
   },
   {
