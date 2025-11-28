@@ -11,10 +11,10 @@ const Trust: React.FC = () => {
         
         {/* Header Section */}
         <div className="text-center mb-16">
-          <div className="inline-flex items-center gap-2 bg-black text-white px-4 py-1 rounded-full mb-4 font-bold text-sm uppercase tracking-wider">
+          <div className="inline-flex items-center gap-2 bg-black text-white px-4 py-1 rounded-full mb-8 font-bold text-sm uppercase tracking-wider">
             <ShieldCheck size={18} className="text-uhi-yellow" /> Uy tín khẳng định thương hiệu
           </div>
-          <h2 className="font-comic text-5xl md:text-6xl text-gray-900 mb-6">
+          <h2 className="font-comic text-5xl md:text-6xl text-gray-900 mb-6 leading-tight">
             CHẤT LƯỢNG <span className="text-blue-600">QUỐC TẾ</span>
           </h2>
           <div className="w-24 h-1 bg-blue-600 mx-auto rounded-full"></div>

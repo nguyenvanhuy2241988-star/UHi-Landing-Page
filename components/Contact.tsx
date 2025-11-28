@@ -15,37 +15,42 @@ const Contact: React.FC = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Create Email Body
-    const subject = `Đăng Ký Đại Lý UHi - ${formData.name} - ${formData.phone}`;
-    const body = `
-Xin chào UHi Vietnam,
+    try {
+      // Using FormSubmit.co for serverless email submission
+      // This allows the user to send emails directly without opening their mail client
+      const response = await fetch("https://formsubmit.co/ajax/lyhu.vn@gmail.com", {
+        method: "POST",
+        headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+            name: formData.name,
+            phone: formData.phone,
+            area: formData.area,
+            note: formData.note,
+            _subject: `🔥 Đăng Ký Đại Lý UHi Mới: ${formData.name}`,
+            _template: 'table'
+        })
+      });
 
-Tôi muốn đăng ký làm đại lý phân phối. Dưới đây là thông tin của tôi:
-
-- Họ và tên: ${formData.name}
-- Số điện thoại/Zalo: ${formData.phone}
-- Khu vực dự kiến: ${formData.area}
-- Ghi chú thêm: ${formData.note}
-
-Mong nhận được phản hồi sớm.
-Xin cảm ơn!
-    `.trim();
-
-    // Construct Mailto Link
-    const mailtoLink = `mailto:${CONTACT_INFO.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-
-    // Open Mail Client
-    window.location.href = mailtoLink;
-
-    // Reset UI state
-    setTimeout(() => {
+      if (response.ok) {
+        alert('Gửi đăng ký thành công! Chúng tôi sẽ liên hệ lại sớm.');
+        setFormData({ name: '', phone: '', area: '', note: '' });
+      } else {
+        alert('Có lỗi xảy ra khi gửi. Vui lòng thử lại hoặc gọi hotline.');
+      }
+    } catch (error) {
+      console.error(error);
+      // Fallback in case of network error, just to be safe, prompt user to call
+      alert('Không thể kết nối. Vui lòng liên hệ Hotline/Zalo: ' + CONTACT_INFO.hotline);
+    } finally {
       setIsSubmitting(false);
-      alert('Hệ thống đã mở ứng dụng Email của bạn. Vui lòng bấm Gửi để hoàn tất đăng ký!');
-    }, 1000);
+    }
   };
 
   return (
@@ -151,13 +156,13 @@ Xin cảm ơn!
               <button 
                 type="submit" 
                 disabled={isSubmitting}
-                className="w-full bg-black text-uhi-yellow font-bold text-xl py-4 rounded-xl hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)] active:translate-y-[2px] active:shadow-none"
+                className="w-full bg-black text-uhi-yellow font-bold text-xl py-4 rounded-xl hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)] active:translate-y-[2px] active:shadow-none disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? 'Đang mở Email...' : 'Gửi Thông Tin & Nhận Báo Giá'} 
+                {isSubmitting ? 'Đang gửi thông tin...' : 'Gửi Thông Tin & Nhận Báo Giá'} 
                 {!isSubmitting && <Send size={20} />}
               </button>
               <p className="text-center text-xs text-gray-500 mt-2">
-                 *Thông tin sẽ được gửi trực tiếp đến email lyhu.vn@gmail.com
+                 *Thông tin sẽ được gửi bảo mật.
               </p>
             </form>
           </div>

@@ -22,7 +22,7 @@ const Hero: React.FC = () => {
           <div className="text-white space-y-6 text-center lg:text-left pt-8 lg:pt-0 z-20 order-2 lg:order-1">
             <div className="inline-flex items-center gap-2 bg-black text-uhi-yellow font-bold px-4 py-2 rounded-full border-2 border-white animate-bounce mx-auto lg:mx-0 shadow-[4px_4px_0px_0px_white]">
               <Flame className="text-red-500 fill-red-500" size={20} />
-              <span>SẢN PHẨM HOT TREND 2024</span>
+              <span>SẢN PHẨM HOT TREND 2025</span>
             </div>
 
             <h1 className="font-comic text-5xl md:text-7xl lg:text-8xl leading-[0.9] text-stroke-black drop-shadow-xl">
