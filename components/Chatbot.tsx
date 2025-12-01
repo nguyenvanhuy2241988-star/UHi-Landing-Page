@@ -53,7 +53,7 @@ const Chatbot: React.FC = () => {
   return (
     <>
       {/* Trigger Button - Left Side to avoid calling button */}
-      <div className={`fixed bottom-4 left-4 z-50 transition-all duration-300 ${isOpen ? 'scale-0 opacity-0' : 'scale-100 opacity-100'}`}>
+      <div className={`fixed bottom-10 left-4 z-50 transition-all duration-300 ${isOpen ? 'scale-0 opacity-0' : 'scale-100 opacity-100'}`}>
         <button 
           onClick={() => setIsOpen(true)}
           className="bg-white text-black p-4 rounded-full shadow-[0px_4px_10px_rgba(0,0,0,0.3)] border-2 border-black hover:scale-110 transition-transform relative group"
@@ -67,7 +67,7 @@ const Chatbot: React.FC = () => {
       </div>
 
       {/* Chat Window */}
-      <div className={`fixed bottom-4 left-4 md:left-8 z-50 w-[320px] md:w-[350px] bg-white rounded-2xl shadow-2xl border-2 border-black flex flex-col transition-all duration-300 origin-bottom-left ${isOpen ? 'scale-100 opacity-100' : 'scale-0 opacity-0 pointer-events-none'}`}>
+      <div className={`fixed bottom-10 left-4 md:left-8 z-50 w-[320px] md:w-[350px] bg-white rounded-2xl shadow-2xl border-2 border-black flex flex-col transition-all duration-300 origin-bottom-left ${isOpen ? 'scale-100 opacity-100' : 'scale-0 opacity-0 pointer-events-none'}`}>
         
         {/* Header */}
         <div className="bg-black text-white p-4 rounded-t-xl flex justify-between items-center">
