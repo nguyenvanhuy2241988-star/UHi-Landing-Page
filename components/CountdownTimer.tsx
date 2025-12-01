@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 
 const CountdownTimer: React.FC = () => {
-  // Set end time to 2 days from now for FOMO effect
+  // Set end time to 24 hours (1 day) from now for FOMO effect
   const [timeLeft, setTimeLeft] = useState({
-    hours: 47,
+    hours: 23,
     minutes: 59,
     seconds: 59
   });
