@@ -105,6 +105,6 @@ export const CERTIFICATIONS: Certification[] = [
 export const CONTACT_INFO = {
   company: 'CÔNG TY TNHH LYHU',
   address: 'Tầng 6 V11-B09 KĐT mới An Hưng, phường Dương Nội, TP. Hà Nội',
-  hotline: '0969 153 015',
+  hotline: '0969 069 798',
   email: 'lyhu.vn@gmail.com'
 };
