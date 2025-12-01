@@ -32,6 +32,7 @@ function App() {
       <FloatingCTA />
       <RecentSales />
       <Chatbot />
+      <Analytics />   {/* THÊM DÒNG NÀY */}
     </div>
   );
 }
