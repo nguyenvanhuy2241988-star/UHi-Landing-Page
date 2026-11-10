@@ -1,0 +1,1 @@
+.enquiry{grid-template-columns:minmax(0,2fr) minmax(0,3fr)}.company-global{grid-template-columns:minmax(0,1fr) minmax(0,2.5fr)}.partner{grid-template-columns:minmax(0,1.9fr) minmax(0,1fr)}.faq{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr)}@media(max-width:760px){.enquiry,.company-global,.partner,.faq{grid-template-columns:1fr}}
