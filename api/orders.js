@@ -122,7 +122,13 @@ export default async function handler(req, res) {
 
     // 7. Generate Unique Order ID
     const randomHex = Math.random().toString(16).substring(2, 10).toUpperCase();
+    const isPreview = process.env.VERCEL_ENV === 'preview' || (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== 'production');
     const orderId = `UHI-${randomHex}`;
+
+    // Tag preview test orders distinctly to prevent confusion with real customer orders
+    const taggedNote = isPreview
+      ? (trimmedNote ? `[VERCEL_PREVIEW_TEST] ${trimmedNote}` : '[VERCEL_PREVIEW_TEST]')
+      : trimmedNote;
 
     // 8. CRITICAL: Save to Database FIRST. Handle race condition / concurrent duplicates.
     const insertRes = await fetch(`${supabaseUrl}/rest/v1/uhi_orders`, {
@@ -138,7 +144,7 @@ export default async function handler(req, res) {
         name: trimmedName,
         phone: cleanPhone,
         address: trimmedAddress,
-        note: trimmedNote,
+        note: taggedNote,
         items: items,
         status: 'pending_quote'
       })
