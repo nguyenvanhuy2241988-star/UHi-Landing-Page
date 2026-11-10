@@ -26,7 +26,7 @@ if (form) {
     const submitBtn = form.querySelector('[type=submit]');
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.textContent = 'Đang gửi thông tin...';
+      submitBtn.textContent = 'Đang gửi yêu cầu tư vấn…';
     }
 
     // 1. Submit lead to FormSubmit email (lyhu.vn@gmail.com)
@@ -57,7 +57,7 @@ if (form) {
     } finally {
       if (submitBtn) {
         submitBtn.disabled = false;
-        submitBtn.innerHTML = 'Tạo nội dung hỏi hàng <span>↗</span>';
+        submitBtn.innerHTML = 'Gửi yêu cầu tư vấn <span>↗</span>';
       }
     }
 
@@ -76,9 +76,9 @@ if (form) {
     
     const statusEl = document.querySelector('#copy-status');
     if (emailSent) {
-      statusEl.innerHTML = '<b style="color: #059669;">✓ Đã gửi thông tin đến LYHU!</b> Chúng tôi sẽ liên hệ lại sớm nhất. Bạn cũng có thể sao chép nội dung bên dưới để gửi qua Fanpage hoặc Zalo:';
+      statusEl.innerHTML = '<b style="color: #059669;">✓ Đã gửi yêu cầu tư vấn đến LYHU.</b> LYHU sẽ liên hệ qua thông tin bạn cung cấp. Bạn có thể sao chép nội dung bên dưới để trao đổi thêm qua Fanpage hoặc Zalo.';
     } else {
-      statusEl.textContent = 'Nội dung đã được tạo. Bạn có thể sao chép rồi gửi qua Fanpage hoặc Zalo:';
+      statusEl.textContent = 'Chưa gửi được yêu cầu tư vấn. Vui lòng sao chép nội dung bên dưới để gửi qua Fanpage hoặc Zalo, hoặc gọi 0969 069 798.';
     }
     
     document.querySelector('#request-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });

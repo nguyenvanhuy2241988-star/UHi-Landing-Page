@@ -33,7 +33,7 @@
   if (p) {
     const box = document.createElement('div');
     box.className = 'web-purchase';
-    box.innerHTML = '<span class="eyebrow">ĐẶT HÀNG TRỰC TIẾP</span><p>Chọn món trên web, nhận tư vấn giá và giao hàng COD.</p><div class="purchase-row"><label>Số lượng<input type="number" min="1" max="99" value="1" inputmode="numeric"></label><button class="buy" type="button">Thêm vào giỏ <span>＋</span></button></div><div class="cart-feedback" role="status"></div><a class="text-link" href="/dat-hang.html">Xem giỏ & đặt hàng ↗</a>';
+    box.innerHTML = '<span class="eyebrow">ĐẶT HÀNG TRỰC TIẾP</span><p>Thêm sản phẩm vào giỏ và gửi yêu cầu. LYHU sẽ liên hệ xác nhận giá và phí giao hàng trước khi giao COD.</p><div class="purchase-row"><label>Số lượng<input type="number" min="1" max="99" value="1" inputmode="numeric"></label><button class="buy" type="button">Thêm vào giỏ <span>＋</span></button></div><div class="cart-feedback" role="status"></div><a class="text-link" href="/dat-hang.html">Xem giỏ & đặt hàng ↗</a>';
     const target = document.querySelector('.detail-info>a.buy');
     target?.before(box);
     target?.classList.add('marketplace-buy');
@@ -85,7 +85,7 @@
           button = form.querySelector('[type=submit]'),
           status = document.querySelector('#order-status');
     button.disabled = true;
-    status.innerHTML = '<span style="color: #2563EB;">Đang kết nối và lưu đơn hàng vào hệ thống...</span>';
+    status.innerHTML = '<span style="color: #2563EB;">Đang gửi yêu cầu đặt hàng…</span>';
 
     try {
       const payload = {
