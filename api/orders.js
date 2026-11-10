@@ -55,9 +55,9 @@ export default async function handler(req, res) {
       seenItems.add(item.id);
     }
 
-    // 4. Verify Database connectivity
+    // 4. Verify Database connectivity (Backend must have Service Role credentials)
     const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
       return res.status(503).json({
@@ -72,26 +72,32 @@ export default async function handler(req, res) {
       'Content-Type': 'application/json'
     };
 
-    // 5. Anti-duplicate / Idempotency check: Return existing order if requestId already submitted
-    try {
-      const checkDupRes = await fetch(
-        `${supabaseUrl}/rest/v1/uhi_orders?request_id=eq.${encodeURIComponent(cleanRequestId)}&select=id,status`,
-        { headers: dbHeaders }
-      );
-      if (checkDupRes.ok) {
-        const existingList = await checkDupRes.json();
-        if (existingList && existingList.length > 0) {
-          const existing = existingList[0];
-          return res.status(200).json({
-            id: existing.id,
-            status: existing.status,
-            duplicate: true,
-            message: 'Yêu cầu đặt hàng này đã được tiếp nhận trước đó.'
-          });
+    // Helper to query existing order by request_id
+    async function getExistingOrder(reqId) {
+      try {
+        const checkRes = await fetch(
+          `${supabaseUrl}/rest/v1/uhi_orders?request_id=eq.${encodeURIComponent(reqId)}&select=id,status`,
+          { headers: dbHeaders }
+        );
+        if (checkRes.ok) {
+          const list = await checkRes.json();
+          if (Array.isArray(list) && list.length > 0) return list[0];
         }
+      } catch (e) {
+        console.warn('Check existing order error:', e);
       }
-    } catch (checkErr) {
-      console.warn('Idempotency check warning:', checkErr);
+      return null;
+    }
+
+    // 5. Pre-check idempotency: Check if requestId was already submitted
+    const existing = await getExistingOrder(cleanRequestId);
+    if (existing) {
+      return res.status(200).json({
+        id: existing.id,
+        status: existing.status,
+        duplicate: true,
+        message: 'Yêu cầu đặt hàng này đã được tiếp nhận trước đó.'
+      });
     }
 
     // 6. Anti-spam Rate Limiting: max 5 requests per phone per 24 hours
@@ -118,7 +124,7 @@ export default async function handler(req, res) {
     const randomHex = Math.random().toString(16).substring(2, 10).toUpperCase();
     const orderId = `UHI-${randomHex}`;
 
-    // 8. CRITICAL: Save to Database FIRST. Only proceed if save succeeds!
+    // 8. CRITICAL: Save to Database FIRST. Handle race condition / concurrent duplicates.
     const insertRes = await fetch(`${supabaseUrl}/rest/v1/uhi_orders`, {
       method: 'POST',
       headers: {
@@ -140,6 +146,23 @@ export default async function handler(req, res) {
 
     if (!insertRes.ok) {
       const errText = await insertRes.text();
+
+      // Handle Concurrent Race Condition:
+      // If two identical requests hit the DB at the exact same time, the second will hit a unique constraint violation
+      // (PostgREST HTTP 409 Conflict or 23505 duplicate key)
+      const isConflict = insertRes.status === 409 || errText.includes('23505') || errText.includes('duplicate key') || errText.includes('uhi_orders_request_id_key');
+      if (isConflict) {
+        const concurrentExisting = await getExistingOrder(cleanRequestId);
+        if (concurrentExisting) {
+          return res.status(200).json({
+            id: concurrentExisting.id,
+            status: concurrentExisting.status,
+            duplicate: true,
+            message: 'Yêu cầu đặt hàng này đã được tiếp nhận.'
+          });
+        }
+      }
+
       console.error('Database insert error:', insertRes.status, errText);
       return res.status(503).json({
         error: 'save_failed',

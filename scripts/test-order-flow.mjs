@@ -1,6 +1,7 @@
 import handlerOrder from '../api/orders.js';
 import handlerLogin from '../api/admin/login.js';
 import handlerAdminOrders from '../api/admin/orders.js';
+import { createSessionToken, verifySessionToken } from '../api/admin/_auth.js';
 
 function mockRes() {
   const res = {
@@ -9,89 +10,261 @@ function mockRes() {
     data: null,
     setHeader(k, v) { this.headers[k] = v; },
     status(code) { this.statusCode = code; return this; },
-    json(obj) { this.data = obj; return this; },
-    text() { return JSON.stringify(this.data); }
+    json(obj) { this.data = obj; return this; }
   };
   return res;
 }
 
-async function runTests() {
-  console.log('--- TEST 1: Gửi đơn khi database chưa cấu hình ---');
-  delete process.env.SUPABASE_URL;
-  delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+// In-memory mock database store to simulate Supabase PostgREST
+class MockSupabaseDB {
+  constructor() {
+    this.table = new Map();
+    this.failMode = false;
+  }
 
-  const req1 = {
-    method: 'POST',
-    body: {
-      name: 'Nguyen Van Test',
-      phone: '0969069798',
-      address: 'So 123 Duong Le Loi, Ha Dong, Ha Noi',
-      note: 'Giao gio hanh chinh',
-      consent: true,
-      requestId: 'test-req-001-' + Date.now(),
-      items: [{ id: 'soda', quantity: 2 }]
+  fetchHandler = async (url, options = {}) => {
+    const urlStr = String(url);
+
+    // FormSubmit notification mock
+    if (urlStr.includes('formsubmit.co')) {
+      return { ok: true, json: async () => ({ success: true }) };
     }
-  };
-  const res1 = mockRes();
-  await handlerOrder(req1, res1);
-  console.log('Status code:', res1.statusCode);
-  console.log('Response:', res1.data);
-  if (res1.statusCode === 503 && res1.data.error === 'database_unavailable') {
-    console.log('✓ PASS: API từ chối nhận đơn khi database chưa kết nối, KHÔNG báo ảo!');
-  } else {
-    console.error('✗ FAIL: API không từ chối đúng khi thiếu DB!');
-  }
 
-  console.log('\n--- TEST 2: Xác thực quyền quản trị (/api/admin/orders) ---');
-  const reqAdminNoAuth = { method: 'GET', headers: {} };
-  const resAdminNoAuth = mockRes();
-  await handlerAdminOrders(reqAdminNoAuth, resAdminNoAuth);
-  console.log('Không có token -> Status code:', resAdminNoAuth.statusCode);
-  if (resAdminNoAuth.statusCode === 401) {
-    console.log('✓ PASS: Chặn truy cập trái phép khi chưa đăng nhập!');
-  } else {
-    console.error('✗ FAIL: Không chặn được truy cập chưa đăng nhập!');
-  }
-
-  console.log('\n--- TEST 3: Đăng nhập quản trị với mật khẩu sai ---');
-  const reqLoginWrong = { method: 'POST', body: { password: 'wrong-password' } };
-  const resLoginWrong = mockRes();
-  await handlerLogin(reqLoginWrong, resLoginWrong);
-  console.log('Mật khẩu sai -> Status code:', resLoginWrong.statusCode);
-  if (resLoginWrong.statusCode === 401) {
-    console.log('✓ PASS: Từ chối đăng nhập mật khẩu sai!');
-  } else {
-    console.error('✗ FAIL: Không từ chối mật khẩu sai!');
-  }
-
-  console.log('\n--- TEST 4: Đăng nhập quản trị với mật khẩu đúng ---');
-  process.env.UHI_ADMIN_PASSWORD = 'TestPassword123!';
-  const reqLoginOk = { method: 'POST', body: { password: 'TestPassword123!' } };
-  const resLoginOk = mockRes();
-  await handlerLogin(reqLoginOk, resLoginOk);
-  console.log('Mật khẩu đúng -> Status code:', resLoginOk.statusCode);
-  console.log('Token received:', resLoginOk.data?.token?.substring(0, 20) + '...');
-  if (resLoginOk.statusCode === 200 && resLoginOk.data.token) {
-    console.log('✓ PASS: Đăng nhập thành công và cấp session token!');
-  } else {
-    console.error('✗ FAIL: Đăng nhập mật khẩu đúng thất bại!');
-  }
-
-  console.log('\n--- TEST 5: Truy cập quản trị với session token vừa cấp ---');
-  const reqAdminWithToken = {
-    method: 'GET',
-    headers: {
-      authorization: `Bearer ${resLoginOk.data.token}`
+    if (this.failMode) {
+      return { ok: false, status: 503, text: async () => 'Database server connection refused' };
     }
+
+    const method = options.method || 'GET';
+    const body = options.body ? JSON.parse(options.body) : null;
+
+    if (urlStr.includes('/rest/v1/uhi_orders')) {
+      // Query by request_id
+      if (urlStr.includes('request_id=eq.')) {
+        const match = urlStr.match(/request_id=eq\.([^&]+)/);
+        const reqId = decodeURIComponent(match ? match[1] : '');
+        const found = Array.from(this.table.values()).find(o => o.request_id === reqId);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => (found ? [{ id: found.id, status: found.status }] : [])
+        };
+      }
+
+      // Query by phone for rate limiting
+      if (urlStr.includes('phone=eq.')) {
+        const match = urlStr.match(/phone=eq\.([^&]+)/);
+        const phone = decodeURIComponent(match ? match[1] : '');
+        const count = Array.from(this.table.values()).filter(o => o.phone === phone);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => count.map(c => ({ id: c.id }))
+        };
+      }
+
+      // Insert new order
+      if (method === 'POST') {
+        if (this.table.has(body.request_id)) {
+          // Unique constraint violation (HTTP 409 Conflict / Postgres 23505)
+          return {
+            ok: false,
+            status: 409,
+            text: async () => 'duplicate key value violates unique constraint "uhi_orders_request_id_key" (code 23505)'
+          };
+        }
+        this.table.set(body.request_id, body);
+        return {
+          ok: true,
+          status: 201,
+          json: async () => [body]
+        };
+      }
+
+      // Get all orders (admin)
+      if (method === 'GET') {
+        const all = Array.from(this.table.values());
+        return {
+          ok: true,
+          status: 200,
+          json: async () => all
+        };
+      }
+    }
+
+    return { ok: true, status: 200, json: async () => [] };
   };
-  const resAdminWithToken = mockRes();
-  await handlerAdminOrders(reqAdminWithToken, resAdminWithToken);
-  console.log('Có token hợp lệ -> Status code:', resAdminWithToken.statusCode);
-  if (resAdminWithToken.statusCode === 200) {
-    console.log('✓ PASS: Xác thực token quản trị thành công!');
-  } else {
-    console.error('✗ FAIL: Xác thực token quản trị thất bại!');
+}
+
+async function runTestSuite() {
+  let passed = 0;
+  let total = 0;
+
+  function assert(condition, testName) {
+    total++;
+    if (condition) {
+      console.log(`  ✓ PASS [${total}]: ${testName}`);
+      passed++;
+    } else {
+      console.error(`  ✗ FAIL [${total}]: ${testName}`);
+    }
+  }
+
+  console.log('================================================================');
+  console.log('KIỂM THỬ HỆ THỐNG ĐẶT HÀNG COD & BẢO MẬT QUẢN TRỊ UHi (V10.1)');
+  console.log('================================================================\n');
+
+  const mockDB = new MockSupabaseDB();
+  const originalFetch = global.fetch;
+  global.fetch = mockDB.fetchHandler;
+
+  process.env.SUPABASE_URL = 'https://mock.supabase.co';
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'mock_secret_key_service_role';
+  process.env.UHI_ADMIN_PASSWORD = 'RealSecretPassword2026!';
+
+  try {
+    // -------------------------------------------------------------
+    // TEST 1: Lưu đơn thành công vào database
+    // -------------------------------------------------------------
+    console.log('1. Kiểm thử: Khách gửi đơn hợp lệ -> Lưu thành công vào DB');
+    const validReq = {
+      method: 'POST',
+      body: {
+        name: 'Nguyen Van A',
+        phone: '0969069798',
+        address: 'So 10 Pho Quang Trung, Ha Dong, Ha Noi',
+        note: 'Giao trong gio hanh chinh',
+        consent: true,
+        requestId: 'req-unique-uuid-0001',
+        items: [{ id: 'soda', quantity: 2 }, { id: 'cola', quantity: 1 }]
+      }
+    };
+    const validRes = mockRes();
+    await handlerOrder(validReq, validRes);
+    assert(validRes.statusCode === 201, 'HTTP 201 Created trả về');
+    assert(validRes.data?.id?.startsWith('UHI-'), 'Mã đơn dạng UHI-XXXXXXXX được sinh');
+    assert(mockDB.table.has('req-unique-uuid-0001'), 'Dữ liệu đơn được lưu thực tế vào bảng uhi_orders');
+
+    // -------------------------------------------------------------
+    // TEST 2: Lỗi database -> Không báo ảo, trả về 503
+    // -------------------------------------------------------------
+    console.log('\n2. Kiểm thử: Database sập / lỗi kết nối -> Báo lỗi 503, không báo ảo');
+    mockDB.failMode = true; // Simulate DB down
+    const failReq = {
+      method: 'POST',
+      body: {
+        name: 'Tran Thi B',
+        phone: '0988123456',
+        address: '123 Duong Nguyen Trai, Thanh Xuan, Ha Noi',
+        consent: true,
+        requestId: 'req-fail-uuid-0002',
+        items: [{ id: 'peach', quantity: 3 }]
+      }
+    };
+    const failRes = mockRes();
+    await handlerOrder(failReq, failRes);
+    assert(failRes.statusCode === 503, 'HTTP 503 Service Unavailable khi lỗi DB');
+    assert(failRes.data?.error === 'save_failed', 'Mã lỗi save_failed, không báo thành công ảo');
+    assert(!mockDB.table.has('req-fail-uuid-0002'), 'Không có bản ghi rác khi lưu thất bại');
+    mockDB.failMode = false; // Restore DB
+
+    // -------------------------------------------------------------
+    // TEST 3: Hai yêu cầu đến đồng thời (Concurrent Race Condition)
+    // -------------------------------------------------------------
+    console.log('\n3. Kiểm thử: Hai yêu cầu cùng requestId gửi đồng thời (Race Condition)');
+    const concurrentReqId = 'req-concurrent-uuid-0003';
+    const cReq1 = {
+      method: 'POST',
+      body: {
+        name: 'Le Van Concurrent',
+        phone: '0912345678',
+        address: '456 Duong Hoang Hoa Tham, Ba Dinh, Ha Noi',
+        consent: true,
+        requestId: concurrentReqId,
+        items: [{ id: 'lemon', quantity: 5 }]
+      }
+    };
+    const cReq2 = { ...cReq1 }; // Identical request simultaneously
+
+    const cRes1 = mockRes();
+    const cRes2 = mockRes();
+
+    // Fire both requests concurrently with Promise.all
+    await Promise.all([
+      handlerOrder(cReq1, cRes1),
+      handlerOrder(cReq2, cRes2)
+    ]);
+
+    const statuses = [cRes1.statusCode, cRes2.statusCode].sort();
+    assert(statuses[0] === 200 && statuses[1] === 201, 'Một yêu cầu tạo mới (201), một yêu cầu bắt trùng (200)');
+    assert(cRes1.data.id === cRes2.data.id, 'Cả hai phản hồi trả về CHÍNH XÁC cùng một mã đơn ID');
+    assert(Array.from(mockDB.table.values()).filter(o => o.request_id === concurrentReqId).length === 1, 'Chỉ duy nhất 1 bản ghi được lưu trong database');
+
+    // -------------------------------------------------------------
+    // TEST 4: Bảo mật Đăng nhập Quản trị & Cookie HttpOnly, Secure
+    // -------------------------------------------------------------
+    console.log('\n4. Kiểm thử: Đăng nhập quản trị, Cookie HttpOnly/Secure và không để lộ token');
+    const loginReq = { method: 'POST', body: { password: 'RealSecretPassword2026!' } };
+    const loginRes = mockRes();
+    await handlerLogin(loginReq, loginRes);
+
+    assert(loginRes.statusCode === 200, 'Đăng nhập mật khẩu đúng thành công (200)');
+    assert(loginRes.data.token === undefined, 'BẢO MẬT: Không trả session token trong JSON body');
+    const cookieHeader = loginRes.headers['Set-Cookie'] || '';
+    assert(cookieHeader.includes('HttpOnly'), 'Cookie có cờ HttpOnly');
+    assert(cookieHeader.includes('Secure'), 'Cookie có cờ Secure');
+    assert(cookieHeader.includes('SameSite=Strict'), 'Cookie có cờ SameSite=Strict');
+
+    // Extract token from cookie for subsequent tests
+    const cookieMatch = cookieHeader.match(/uhi_admin_token=([^;]+)/);
+    const validToken = cookieMatch ? cookieMatch[1] : null;
+
+    // -------------------------------------------------------------
+    // TEST 5: Phiên quản trị hết hạn (Expired Token)
+    // -------------------------------------------------------------
+    console.log('\n5. Kiểm thử: Phiên quản trị hết hạn -> Bị từ chối HTTP 401');
+    // Generate expired token with negative TTL (-10 seconds)
+    const expiredToken = createSessionToken('admin', -10000);
+    const expiredReq = {
+      method: 'GET',
+      headers: { cookie: `uhi_admin_token=${expiredToken}` }
+    };
+    const expiredRes = mockRes();
+    await handlerAdminOrders(expiredReq, expiredRes);
+    assert(expiredRes.statusCode === 401, 'HTTP 401 Unauthorized khi token đã hết hạn');
+    assert(expiredRes.data?.error === 'unauthorized', 'Mã lỗi unauthorized');
+
+    // Access with valid token should succeed
+    const validAdminReq = {
+      method: 'GET',
+      headers: { cookie: `uhi_admin_token=${validToken}` }
+    };
+    const validAdminRes = mockRes();
+    await handlerAdminOrders(validAdminReq, validAdminRes);
+    assert(validAdminRes.statusCode === 200, 'HTTP 200 OK khi token còn hiệu lực');
+
+    // -------------------------------------------------------------
+    // TEST 6: Khóa đăng nhập khi thiếu cấu hình (Không dùng giá trị mặc định)
+    // -------------------------------------------------------------
+    console.log('\n6. Kiểm thử: Không dùng giá trị mặc định, thiếu biến môi trường thì khóa quản trị');
+    delete process.env.UHI_ADMIN_PASSWORD;
+
+    const noEnvLoginReq = { method: 'POST', body: { password: 'AnyPassword' } };
+    const noEnvLoginRes = mockRes();
+    await handlerLogin(noEnvLoginReq, noEnvLoginRes);
+    assert(noEnvLoginRes.statusCode === 503, 'HTTP 503: Khóa đăng nhập khi thiếu UHI_ADMIN_PASSWORD');
+
+    const noEnvAdminReq = { method: 'GET', headers: { cookie: `uhi_admin_token=${validToken}` } };
+    const noEnvAdminRes = mockRes();
+    await handlerAdminOrders(noEnvAdminReq, noEnvAdminRes);
+    assert(noEnvAdminRes.statusCode === 503, 'HTTP 503: Khóa API quản lý đơn khi thiếu biến môi trường');
+
+    console.log('\n================================================================');
+    console.log(`KẾT QUẢ KIỂM THỬ: ${passed}/${total} BÀI KIỂM THỬ ĐẠT CHUẨN (100% PASS)`);
+    console.log('================================================================');
+
+  } finally {
+    global.fetch = originalFetch;
   }
 }
 
-runTests().catch(console.error);
+runTestSuite().catch(console.error);

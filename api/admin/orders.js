@@ -1,16 +1,23 @@
-import { verifySessionToken } from './_auth.js';
+import { verifySessionToken, isAuthConfigured } from './_auth.js';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
-  // 1. Extract session token from cookie or Authorization header
+  if (!isAuthConfigured()) {
+    return res.status(503).json({
+      error: 'admin_not_configured',
+      message: 'Tính năng quản trị chưa được cấu hình biến môi trường UHI_ADMIN_PASSWORD.'
+    });
+  }
+
+  // 1. Extract session token from HttpOnly cookie (or Authorization header for API testing)
   let token = null;
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    token = authHeader.substring(7).trim();
-  } else if (req.headers.cookie) {
-    const match = req.headers.cookie.match(/uhi_admin_token=([^;]+)/);
-    if (match) token = match[1];
+  const cookieHeader = req.headers.cookie || '';
+  const match = cookieHeader.match(/(?:^|;\s*)uhi_admin_token=([^;]+)/);
+  if (match) {
+    token = match[1];
+  } else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    token = req.headers.authorization.substring(7).trim();
   }
 
   // 2. Verify token
@@ -24,11 +31,11 @@ export default async function handler(req, res) {
 
   // 3. Database connection
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     return res.status(200).json({
-      message: 'Hệ thống lưu trữ đang trong chế độ dự phòng. Hãy cấu hình SUPABASE_URL và SUPABASE_SERVICE_ROLE_KEY trên Vercel để đồng bộ trực tiếp.',
+      message: 'Chưa cấu hình SUPABASE_SERVICE_ROLE_KEY trên server để đọc dữ liệu đơn hàng.',
       results: []
     });
   }

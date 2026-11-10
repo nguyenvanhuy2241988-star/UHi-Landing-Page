@@ -8,8 +8,6 @@
   const refreshBtn = document.querySelector('#refresh');
   const logoutBtn = document.querySelector('#logout');
 
-  let sessionToken = sessionStorage.getItem('uhi_admin_token') || '';
-
   let products = [];
   try {
     products = await fetch('/catalog.json').then(r => r.json());
@@ -47,8 +45,10 @@
     }
 
     try {
+      // Cookie is set directly by server in Set-Cookie: HttpOnly; Secure; SameSite=Strict
       const res = await fetch('/api/admin/login', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password })
       });
@@ -57,8 +57,6 @@
         throw new Error(data.message || 'Mật mã quản trị chưa chính xác');
       }
 
-      sessionToken = data.token;
-      sessionStorage.setItem('uhi_admin_token', sessionToken);
       if (pwdInput) pwdInput.value = '';
       showDashboard();
     } catch (err) {
@@ -74,10 +72,8 @@
 
   logoutBtn?.addEventListener('click', async () => {
     try {
-      await fetch('/api/admin/logout', { method: 'POST' });
+      await fetch('/api/admin/logout', { method: 'POST', credentials: 'same-origin' });
     } catch {}
-    sessionToken = '';
-    sessionStorage.removeItem('uhi_admin_token');
     showLogin('Đã đăng xuất thành công.');
   });
 
@@ -90,16 +86,13 @@
     ordersList.replaceChildren();
 
     try {
+      // Browser automatically transmits HttpOnly cookie
       const res = await fetch('/api/admin/orders', {
-        headers: {
-          'Authorization': `Bearer ${sessionToken}`
-        }
+        credentials: 'same-origin'
       });
 
       if (res.status === 401 || res.status === 403) {
-        sessionToken = '';
-        sessionStorage.removeItem('uhi_admin_token');
-        showLogin('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.');
+        showLogin('Vui lòng đăng nhập để truy cập quản lý đơn hàng.');
         return;
       }
 
@@ -157,9 +150,9 @@
           try {
             const patchRes = await fetch('/api/admin/orders', {
               method: 'PATCH',
+              credentials: 'same-origin',
               headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${sessionToken}`
+                'Content-Type': 'application/json'
               },
               body: JSON.stringify({ id: order.id, status: select.value })
             });
@@ -184,10 +177,15 @@
     }
   }
 
-  // Initial state check
-  if (sessionToken) {
-    showDashboard();
-  } else {
+  // Attempt to load orders initially (if session cookie is already valid)
+  try {
+    const checkRes = await fetch('/api/admin/orders', { credentials: 'same-origin' });
+    if (checkRes.ok) {
+      showDashboard();
+    } else {
+      showLogin();
+    }
+  } catch {
     showLogin();
   }
 })();
