@@ -2,58 +2,153 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'method_not_allowed' });
+    return res.status(405).json({ error: 'method_not_allowed', message: 'Chỉ chấp nhận phương thức POST' });
   }
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
     const { name, phone, address, note, items, consent, requestId, website } = body;
 
-    // 1. Honeypot check
+    // 1. Honeypot anti-spam check
     if (website) {
-      return res.status(400).json({ error: 'invalid' });
+      return res.status(400).json({ error: 'invalid', message: 'Dữ liệu không hợp lệ' });
     }
 
     // 2. Consent check
     if (!consent) {
-      return res.status(400).json({ error: 'consent_required' });
+      return res.status(400).json({ error: 'consent_required', message: 'Vui lòng xác nhận đồng ý để LYHU liên hệ xử lý đơn hàng' });
     }
 
-    // 3. Validation
+    // 3. Payload validation
     const trimmedName = String(name || '').trim();
     const cleanPhone = String(phone || '').replace(/[\s.()-]/g, '');
     const trimmedAddress = String(address || '').trim();
     const trimmedNote = String(note || '').trim();
+    const cleanRequestId = String(requestId || '').trim();
+
+    if (!cleanRequestId || cleanRequestId.length < 10) {
+      return res.status(400).json({ error: 'invalid_request_id', message: 'Mã yêu cầu đơn không hợp lệ' });
+    }
 
     if (trimmedName.length < 2 || trimmedName.length > 100) {
-      return res.status(400).json({ error: 'invalid_name' });
+      return res.status(400).json({ error: 'invalid_name', message: 'Họ và tên phải từ 2 đến 100 ký tự' });
     }
 
     if (!/^0[35789]\d{8}$/.test(cleanPhone)) {
-      return res.status(400).json({ error: 'invalid_phone' });
+      return res.status(400).json({ error: 'invalid_phone', message: 'Số điện thoại không đúng định dạng Việt Nam (10 chữ số bắt đầu bằng 03, 05, 07, 08, 09)' });
     }
 
     if (trimmedAddress.length < 8 || trimmedAddress.length > 500) {
-      return res.status(400).json({ error: 'invalid_address' });
+      return res.status(400).json({ error: 'invalid_address', message: 'Địa chỉ giao hàng quá ngắn, vui lòng nhập đầy đủ số nhà/đường/phường xã' });
     }
 
     if (!Array.isArray(items) || items.length === 0 || items.length > 8) {
-      return res.status(400).json({ error: 'invalid_items' });
+      return res.status(400).json({ error: 'invalid_items', message: 'Giỏ hàng không có sản phẩm hợp lệ' });
     }
 
     const validIds = new Set(['soda', 'cola', 'peach', 'lemon', 'cream', 'lemoncola', 'rock', 'toast']);
+    const seenItems = new Set();
     for (const item of items) {
-      if (!validIds.has(item.id) || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 99) {
-        return res.status(400).json({ error: 'invalid_items' });
+      if (!validIds.has(item.id) || seenItems.has(item.id) || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 99) {
+        return res.status(400).json({ error: 'invalid_items', message: 'Số lượng hoặc mã sản phẩm không hợp lệ' });
       }
+      seenItems.add(item.id);
     }
 
-    // 4. Generate Order ID
+    // 4. Verify Database connectivity
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      return res.status(503).json({
+        error: 'database_unavailable',
+        message: 'Hệ thống lưu trữ đơn hàng đang bảo trì. Vui lòng liên hệ Hotline/Zalo 0969 069 798 hoặc đặt qua gian hàng Shopee: https://shopee.vn/boyo.vn'
+      });
+    }
+
+    const dbHeaders = {
+      'apikey': supabaseKey,
+      'Authorization': `Bearer ${supabaseKey}`,
+      'Content-Type': 'application/json'
+    };
+
+    // 5. Anti-duplicate / Idempotency check: Return existing order if requestId already submitted
+    try {
+      const checkDupRes = await fetch(
+        `${supabaseUrl}/rest/v1/uhi_orders?request_id=eq.${encodeURIComponent(cleanRequestId)}&select=id,status`,
+        { headers: dbHeaders }
+      );
+      if (checkDupRes.ok) {
+        const existingList = await checkDupRes.json();
+        if (existingList && existingList.length > 0) {
+          const existing = existingList[0];
+          return res.status(200).json({
+            id: existing.id,
+            status: existing.status,
+            duplicate: true,
+            message: 'Yêu cầu đặt hàng này đã được tiếp nhận trước đó.'
+          });
+        }
+      }
+    } catch (checkErr) {
+      console.warn('Idempotency check warning:', checkErr);
+    }
+
+    // 6. Anti-spam Rate Limiting: max 5 requests per phone per 24 hours
+    try {
+      const oneDayAgo = new Date(Date.now() - 86400000).toISOString();
+      const rateRes = await fetch(
+        `${supabaseUrl}/rest/v1/uhi_orders?phone=eq.${encodeURIComponent(cleanPhone)}&created_at=gte.${encodeURIComponent(oneDayAgo)}&select=id`,
+        { headers: dbHeaders }
+      );
+      if (rateRes.ok) {
+        const recentOrders = await rateRes.json();
+        if (Array.isArray(recentOrders) && recentOrders.length >= 5) {
+          return res.status(429).json({
+            error: 'rate_limited',
+            message: 'Số điện thoại này đã gửi nhiều yêu cầu trong 24 giờ qua. Vui lòng gọi Hotline 0969 069 798 để được hỗ trợ nhanh.'
+          });
+        }
+      }
+    } catch (rateErr) {
+      console.warn('Rate limit check warning:', rateErr);
+    }
+
+    // 7. Generate Unique Order ID
     const randomHex = Math.random().toString(16).substring(2, 10).toUpperCase();
     const orderId = `UHI-${randomHex}`;
-    const itemsDescription = items.map(i => `${i.id.toUpperCase()} (x${i.quantity})`).join(', ');
 
-    // 5. Send order notification via FormSubmit API to lyhu.vn@gmail.com
+    // 8. CRITICAL: Save to Database FIRST. Only proceed if save succeeds!
+    const insertRes = await fetch(`${supabaseUrl}/rest/v1/uhi_orders`, {
+      method: 'POST',
+      headers: {
+        ...dbHeaders,
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify({
+        id: orderId,
+        request_id: cleanRequestId,
+        created_at: new Date().toISOString(),
+        name: trimmedName,
+        phone: cleanPhone,
+        address: trimmedAddress,
+        note: trimmedNote,
+        items: items,
+        status: 'pending_quote'
+      })
+    });
+
+    if (!insertRes.ok) {
+      const errText = await insertRes.text();
+      console.error('Database insert error:', insertRes.status, errText);
+      return res.status(503).json({
+        error: 'save_failed',
+        message: 'Chưa thể lưu đơn hàng vào hệ thống dữ liệu. Vui lòng liên hệ Hotline 0969 069 798 hoặc đặt qua Shopee để tránh thất lạc đơn.'
+      });
+    }
+
+    // 9. Send email notification (as secondary alerting, never masks database failure)
+    const itemsDescription = items.map(i => `${i.id.toUpperCase()} (x${i.quantity})`).join(', ');
     try {
       await fetch('https://formsubmit.co/ajax/lyhu.vn@gmail.com', {
         method: 'POST',
@@ -74,42 +169,21 @@ export default async function handler(req, res) {
         })
       });
     } catch (mailErr) {
-      console.warn('FormSubmit email notice warning:', mailErr);
+      console.warn('FormSubmit email notice warning (non-fatal):', mailErr);
     }
 
-    // 6. If Supabase REST API is configured via environment variables, persist order
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
-    if (supabaseUrl && supabaseKey) {
-      try {
-        await fetch(`${supabaseUrl}/rest/v1/orders`, {
-          method: 'POST',
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal'
-          },
-          body: JSON.stringify({
-            id: orderId,
-            request_id: requestId || orderId,
-            created_at: new Date().toISOString(),
-            name: trimmedName,
-            phone: cleanPhone,
-            address: trimmedAddress,
-            note: trimmedNote,
-            items: JSON.stringify(items),
-            status: 'pending_quote'
-          })
-        });
-      } catch (dbErr) {
-        console.warn('Database persist warning:', dbErr);
-      }
-    }
+    // 10. SUCCESS: Only return 201 after persistent storage confirmed!
+    return res.status(201).json({
+      id: orderId,
+      status: 'pending_quote',
+      message: 'Đã nhận yêu cầu đặt hàng thành công!'
+    });
 
-    return res.status(201).json({ id: orderId, status: 'pending_quote' });
   } catch (err) {
-    console.error('Order processing error:', err);
-    return res.status(500).json({ error: 'unavailable' });
+    console.error('Unhandled order processing error:', err);
+    return res.status(500).json({
+      error: 'server_error',
+      message: 'Có lỗi xảy ra trong quá trình xử lý đơn hàng. Vui lòng liên hệ Hotline 0969 069 798 để được hỗ trợ.'
+    });
   }
 }

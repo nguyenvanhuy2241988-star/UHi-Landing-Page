@@ -1,31 +1,69 @@
-<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Đơn hàng UHi — Quản lý</title><link rel="stylesheet" href="style.css"><style>body{padding:5vw}h1{font-size:35px;margin-bottom:20px}article{border:1px solid #2223;padding:20px;margin:20px 0;border-radius:8px}article p{font-size:13px;line-height:1.9;white-space:pre-wrap}select,button{padding:10px;font:inherit}#status{margin:20px 0}</style><link rel="stylesheet" href="language.css"><link rel="stylesheet" href="enhance.css">
-    
-    
-    
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Quản lý Đơn hàng UHi — UHi Việt Nam</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="language.css">
+  <link rel="stylesheet" href="enhance.css">
+  <link rel="icon" type="image/jpeg" href="/assets/logo.jpg">
+  <style>
+    body { padding: 40px 20px; max-width: 900px; margin: 0 auto; font-family: 'Be Vietnam Pro', sans-serif; background: #fafafa; }
+    .card { background: #fff; padding: 24px; border-radius: 12px; border: 2px solid #000; box-shadow: 4px 4px 0px rgba(0,0,0,1); margin-bottom: 24px; }
+    h1 { font-size: 28px; font-weight: 800; margin-bottom: 12px; }
+    .login-box { max-width: 420px; margin: 60px auto; }
+    .login-box label { display: block; font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+    .login-box input { width: 100%; padding: 12px; border: 2px solid #000; border-radius: 8px; margin-bottom: 16px; font-size: 16px; }
+    .btn { background: #000; color: #FFE600; font-weight: 800; padding: 12px 24px; border-radius: 8px; border: none; cursor: pointer; transition: opacity 0.2s; font-size: 15px; }
+    .btn:hover { opacity: 0.9; }
+    .btn-secondary { background: #f3f4f6; color: #111; border: 1px solid #ccc; font-weight: 600; padding: 8px 16px; }
+    article { background: #fff; border: 2px solid #e5e7eb; padding: 20px; margin: 16px 0; border-radius: 10px; border-left: 6px solid #FFE600; }
+    article h2 { font-size: 18px; font-weight: 800; margin-bottom: 8px; color: #111; }
+    article p { font-size: 14px; line-height: 1.8; white-space: pre-wrap; color: #374151; margin-bottom: 12px; }
+    article select { padding: 8px 12px; font-weight: 700; border-radius: 6px; border: 2px solid #000; }
+    .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .alert-err { color: #DC2626; background: #FEE2E2; border: 1px solid #F87171; padding: 10px; border-radius: 6px; font-size: 14px; margin-bottom: 16px; }
+    .alert-info { color: #1E40AF; background: #DBEAFE; border: 1px solid #93C5FD; padding: 14px; border-radius: 8px; font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div style="margin-bottom: 20px;">
+    <a href="/" style="text-decoration: none; font-weight: 700; color: #000;">← Về trang chủ UHi</a>
+  </div>
 
+  <!-- 1. Giao diện Đăng nhập Quản trị -->
+  <div id="login-view" class="card login-box">
+    <h1>Đăng nhập Quản trị</h1>
+    <p style="color: #666; font-size: 14px; margin-bottom: 20px;">Vui lòng nhập mật mã quản trị viên UHi để truy cập danh sách đơn hàng.</p>
+    <div id="login-error" class="alert-err" hidden></div>
+    <form id="admin-login-form">
+      <div>
+        <label for="admin-pwd">Mật mã Quản trị</label>
+        <input type="password" id="admin-pwd" placeholder="Nhập mật mã quản trị..." required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn" style="width: 100%;">Đăng nhập</button>
+    </form>
+  </div>
 
-    <!-- Meta Pixel Code -->
-    <script>
-    !function(f,b,e,v,n,t,s)
-    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-    n.queue=[];t=b.createElement(e);t.async=!0;
-    t.src=v;s=b.getElementsByTagName(e)[0];
-    s.parentNode.insertBefore(t,s)}(window, document,'script',
-    'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '1117198146781464');
-    fbq('track', 'PageView');
-    </script>
-    <!-- End Meta Pixel Code -->
-    <link rel="icon" type="image/jpeg" href="/assets/logo.jpg">
-    <link rel="stylesheet" href="/floating-cta.css">
+  <!-- 2. Giao diện Bảng điều khiển Đơn hàng (Ẩn khi chưa đăng nhập) -->
+  <div id="dashboard-view" hidden>
+    <div class="header-bar">
+      <div>
+        <span style="font-size: 12px; font-weight: 800; color: #FF69B4; text-transform: uppercase;">UHi Management</span>
+        <h1>Quản lý Đơn hàng COD</h1>
+        <p style="color: #666; font-size: 14px;">200 yêu cầu gần nhất từ khách hàng. Xác nhận giá và phí ship trước khi giao hàng.</p>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button id="refresh" class="btn-secondary">Tải lại</button>
+        <button id="logout" class="btn-secondary" style="color: #DC2626;">Đăng xuất</button>
+      </div>
+    </div>
 
-</head><body>
+    <div id="status" role="status"></div>
+    <div id="orders"></div>
+  </div>
 
-<!-- Meta Pixel Code (noscript) -->
-<noscript><img height="1" width="1" style="display:none"
-src="https://www.facebook.com/tr?id=1117198146781464&ev=PageView&noscript=1"
-/></noscript>
-<!-- End Meta Pixel Code (noscript) -->
-<a href="/">← UHi</a><h1 style="margin-top:25px">Yêu cầu COD</h1><p>200 yêu cầu gần nhất. Liên hệ khách để xác nhận giá và phí giao hàng trước khi xử lý.</p><button id="refresh" style="margin-top:20px">Tải lại</button><p id="status" role="status"></p><div id="orders"></div><script src="//admin-orders.js"></script><script src="//language-data.js"></script><script src="//language.js"></script><script src="//enhance.js"></script></body></html>
+  <script src="/admin-orders.js"></script>
+</body>
+</html>

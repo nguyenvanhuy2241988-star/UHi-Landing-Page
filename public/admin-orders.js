@@ -1,7 +1,15 @@
 (async () => {
-  const status = document.querySelector('#status'),
-        list = document.querySelector('#orders');
-  
+  const loginView = document.querySelector('#login-view');
+  const dashboardView = document.querySelector('#dashboard-view');
+  const loginForm = document.querySelector('#admin-login-form');
+  const loginError = document.querySelector('#login-error');
+  const statusEl = document.querySelector('#status');
+  const ordersList = document.querySelector('#orders');
+  const refreshBtn = document.querySelector('#refresh');
+  const logoutBtn = document.querySelector('#logout');
+
+  let sessionToken = sessionStorage.getItem('uhi_admin_token') || '';
+
   let products = [];
   try {
     products = await fetch('/catalog.json').then(r => r.json());
@@ -10,130 +18,176 @@
   }
   const names = Object.fromEntries(products.map(p => [p.id, p.name + ' · ' + p.weight]));
 
-  // Read admin key from localStorage or URL parameter
-  let adminKey = new URLSearchParams(window.location.search).get('key') || localStorage.getItem('uhi_admin_key') || '';
+  function showLogin(msg = '') {
+    loginView.hidden = false;
+    dashboardView.hidden = true;
+    if (msg) {
+      loginError.textContent = msg;
+      loginError.hidden = false;
+    } else {
+      loginError.hidden = true;
+    }
+  }
 
-  async function load() {
-    status.textContent = 'Đang tải…';
-    
-    // If no admin key, ask user for admin key
-    if (!adminKey) {
-      adminKey = prompt('Nhập mật mã quản trị viên (Admin Key):') || '';
-      if (adminKey) {
-        localStorage.setItem('uhi_admin_key', adminKey);
-      } else {
-        status.innerHTML = 'Cần mật mã quản trị viên để xem danh sách đơn hàng. <button id="retry-auth" style="margin-left: 8px; text-decoration: underline; background: none; border: none; cursor: pointer;">Nhập mật mã</button>';
-        document.querySelector('#retry-auth')?.addEventListener('click', () => {
-          localStorage.removeItem('uhi_admin_key');
-          adminKey = '';
-          load();
-        });
-        return;
-      }
+  function showDashboard() {
+    loginView.hidden = true;
+    dashboardView.hidden = false;
+    loadOrders();
+  }
+
+  loginForm?.addEventListener('submit', async e => {
+    e.preventDefault();
+    loginError.hidden = true;
+    const pwdInput = document.querySelector('#admin-pwd');
+    const password = pwdInput ? pwdInput.value : '';
+    const submitBtn = loginForm.querySelector('button[type=submit]');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Đang xác thực...';
     }
 
     try {
-      const response = await fetch('/api/admin/orders', {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Mật mã quản trị chưa chính xác');
+      }
+
+      sessionToken = data.token;
+      sessionStorage.setItem('uhi_admin_token', sessionToken);
+      if (pwdInput) pwdInput.value = '';
+      showDashboard();
+    } catch (err) {
+      loginError.textContent = err.message;
+      loginError.hidden = false;
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Đăng nhập';
+      }
+    }
+  });
+
+  logoutBtn?.addEventListener('click', async () => {
+    try {
+      await fetch('/api/admin/logout', { method: 'POST' });
+    } catch {}
+    sessionToken = '';
+    sessionStorage.removeItem('uhi_admin_token');
+    showLogin('Đã đăng xuất thành công.');
+  });
+
+  refreshBtn?.addEventListener('click', () => {
+    loadOrders();
+  });
+
+  async function loadOrders() {
+    statusEl.innerHTML = '<span style="color: #666;">Đang tải danh sách đơn hàng…</span>';
+    ordersList.replaceChildren();
+
+    try {
+      const res = await fetch('/api/admin/orders', {
         headers: {
-          'X-Admin-Key': adminKey
+          'Authorization': `Bearer ${sessionToken}`
         }
       });
 
-      if (response.status === 401 || response.status === 403) {
-        localStorage.removeItem('uhi_admin_key');
-        adminKey = '';
-        throw new Error('401');
+      if (res.status === 401 || res.status === 403) {
+        sessionToken = '';
+        sessionStorage.removeItem('uhi_admin_token');
+        showLogin('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.');
+        return;
       }
 
-      const data = await response.json();
+      const data = await res.json();
 
       if (data.message && (!data.results || data.results.length === 0)) {
-        status.innerHTML = `<div style="padding: 12px; background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; margin-bottom: 12px; font-size: 14px; line-height: 1.6;">
+        statusEl.innerHTML = `<div class="alert-info">
           <b>Thông báo hệ thống:</b> ${data.message}
         </div>`;
-        list.replaceChildren();
         return;
       }
 
       const orders = Array.isArray(data) ? data : (data.results || []);
-      list.replaceChildren();
-      status.textContent = orders.length ? '' : 'Chưa có yêu cầu đặt hàng nào trong hệ thống.';
+      statusEl.textContent = orders.length ? '' : 'Chưa có yêu cầu đặt hàng nào trong hệ thống.';
 
       for (const order of orders) {
-        const a = document.createElement('article'),
-              title = document.createElement('h2'),
-              p = document.createElement('p');
+        const article = document.createElement('article');
+        const h2 = document.createElement('h2');
+        const p = document.createElement('p');
 
-        title.textContent = order.id;
-        
-        let itemsFormatted = '';
+        h2.textContent = `Mã đơn: ${order.id}`;
+
+        let itemsStr = '';
         try {
           const parsed = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
-          itemsFormatted = parsed.map(x => (names[x.id] || x.id) + ' × ' + x.quantity).join('\n');
+          itemsStr = Array.isArray(parsed) 
+            ? parsed.map(x => (names[x.id] || x.id) + ' × ' + x.quantity).join('\n')
+            : JSON.stringify(parsed);
         } catch {
-          itemsFormatted = String(order.items);
+          itemsStr = String(order.items);
         }
 
-        p.textContent = new Date(order.created_at).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) +
-          '\n' + order.name + ' · ' + order.phone +
-          '\n' + order.address +
-          '\n' + itemsFormatted +
-          '\nGhi chú: ' + (order.note || 'Không có');
+        const dateStr = order.created_at ? new Date(order.created_at).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : 'Vừa xong';
+        p.textContent = `Thời gian: ${dateStr}\nKhách hàng: ${order.name} · SĐT: ${order.phone}\nĐịa chỉ: ${order.address}\n\nDanh sách món:\n${itemsStr}\n\nGhi chú: ${order.note || 'Không có'}`;
 
         const select = document.createElement('select');
         select.setAttribute('aria-label', 'Trạng thái ' + order.id);
-        for (const [value, text] of [
-          ['pending_quote', 'Chờ xác nhận giá'],
-          ['confirmed', 'Đã xác nhận với khách'],
-          ['shipped', 'Đã giao vận'],
-          ['completed', 'Hoàn tất'],
-          ['cancelled', 'Đã hủy']
-        ]) {
-          const option = document.createElement('option');
-          option.value = value;
-          option.textContent = text;
-          select.append(option);
+        const statusMap = [
+          ['pending_quote', '⏳ Chờ xác nhận giá'],
+          ['confirmed', '📞 Đã xác nhận với khách'],
+          ['shipped', '🚚 Đang giao vận'],
+          ['completed', '✅ Hoàn tất'],
+          ['cancelled', '❌ Đã hủy']
+        ];
+        for (const [val, label] of statusMap) {
+          const opt = document.createElement('option');
+          opt.value = val;
+          opt.textContent = label;
+          select.append(opt);
         }
-        select.value = order.status;
+        select.value = order.status || 'pending_quote';
 
         select.addEventListener('change', async () => {
           select.disabled = true;
           try {
-            const r = await fetch('/api/admin/orders', {
+            const patchRes = await fetch('/api/admin/orders', {
               method: 'PATCH',
               headers: {
                 'Content-Type': 'application/json',
-                'X-Admin-Key': adminKey
+                'Authorization': `Bearer ${sessionToken}`
               },
               body: JSON.stringify({ id: order.id, status: select.value })
             });
-            if (!r.ok) throw new Error();
+            if (!patchRes.ok) throw new Error();
             order.status = select.value;
-            status.textContent = 'Đã cập nhật trạng thái ' + order.id;
+            statusEl.innerHTML = `<span style="color: #059669; font-weight: bold;">✓ Đã cập nhật trạng thái đơn ${order.id}</span>`;
+            setTimeout(() => { statusEl.textContent = ''; }, 3000);
           } catch {
             select.value = order.status;
-            status.textContent = 'Chưa cập nhật được. Vui lòng thử lại.';
+            statusEl.innerHTML = `<span style="color: #DC2626;">Chưa cập nhật được trạng thái. Vui lòng thử lại.</span>`;
           } finally {
             select.disabled = false;
           }
         });
 
-        a.append(title, p, select);
-        list.append(a);
+        article.append(h2, p, select);
+        ordersList.append(article);
       }
-    } catch (error) {
-      if (error.message === '401') {
-        status.innerHTML = 'Mật mã quản trị chưa chính xác. <button id="retry-auth" style="margin-left: 8px; text-decoration: underline; background: none; border: none; cursor: pointer;">Thử lại</button>';
-        document.querySelector('#retry-auth')?.addEventListener('click', () => {
-          adminKey = '';
-          load();
-        });
-      } else {
-        status.textContent = 'Chưa tải được danh sách đơn hàng. Vui lòng thử lại sau.';
-      }
+
+    } catch (err) {
+      statusEl.innerHTML = `<span style="color: #DC2626;">Không thể tải dữ liệu: ${err.message}</span>`;
     }
   }
 
-  document.querySelector('#refresh')?.addEventListener('click', load);
-  load();
+  // Initial state check
+  if (sessionToken) {
+    showDashboard();
+  } else {
+    showLogin();
+  }
 })();
