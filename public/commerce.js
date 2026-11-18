@@ -22,7 +22,7 @@
 
   const cartLink = document.createElement('a');
   cartLink.className = 'cart-link';
-  cartLink.href = '/dat-hang.html';
+  cartLink.href = '/dat-hang';
   cartLink.innerHTML = '<span>Giỏ hàng</span> <b data-cart-count>0</b>';
   document.querySelector('header .header-actions')?.append(cartLink);
   if (!cartLink.isConnected) document.querySelector('header')?.append(cartLink);
@@ -33,7 +33,7 @@
   if (p) {
     const box = document.createElement('div');
     box.className = 'web-purchase';
-    box.innerHTML = '<span class="eyebrow">ĐẶT HÀNG TRỰC TIẾP</span><p>Thêm sản phẩm vào giỏ và gửi yêu cầu. LYHU sẽ liên hệ xác nhận giá và phí giao hàng trước khi giao COD.</p><div class="purchase-row"><label>Số lượng<input type="number" min="1" max="99" value="1" inputmode="numeric"></label><button class="buy" type="button">Thêm vào giỏ <span>＋</span></button></div><div class="cart-feedback" role="status"></div><a class="text-link" href="/dat-hang.html">Xem giỏ & đặt hàng ↗</a>';
+    box.innerHTML = '<span class="eyebrow">ĐẶT HÀNG TRỰC TIẾP</span><p>Thêm sản phẩm vào giỏ và gửi yêu cầu. LYHU sẽ liên hệ xác nhận giá và phí giao hàng trước khi giao COD.</p><div class="purchase-row"><label>Số lượng<input type="number" min="1" max="99" value="1" inputmode="numeric"></label><button class="buy" type="button">Thêm vào giỏ <span>＋</span></button></div><div class="cart-feedback" role="status"></div><a class="text-link" href="/dat-hang">Xem giỏ & đặt hàng ↗</a>';
     const target = document.querySelector('.detail-info>a.buy');
     target?.before(box);
     target?.classList.add('marketplace-buy');
