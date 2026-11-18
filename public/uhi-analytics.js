@@ -31,6 +31,9 @@
     }).catch(function () {});
   }
   if (document.readyState === 'complete') track(); else addEventListener('load', track, { once: true });
+  addEventListener('pageshow', function (event) {
+    if (event.persisted) { lastPath = ''; track(); }
+  });
   addEventListener('popstate', track);
   ['pushState', 'replaceState'].forEach(function (method) {
     var original = history[method];
