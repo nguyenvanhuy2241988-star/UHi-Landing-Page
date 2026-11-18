@@ -18,6 +18,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, 'index.html'),
+        sanPham: path.resolve(__dirname, 'san-pham.html'),
         soda: path.resolve(__dirname, 'san-pham-soda.html'),
         cola: path.resolve(__dirname, 'san-pham-cola.html'),
         peach: path.resolve(__dirname, 'san-pham-peach.html'),
