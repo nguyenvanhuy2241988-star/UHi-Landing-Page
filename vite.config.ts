@@ -12,7 +12,11 @@ export default defineConfig({
     transformIndexHtml(html, ctx) {
       // Never instrument the internal order-management page.
       if (/quan-ly-don(?:\.html)?$/.test(ctx.path)) return html;
-      if (ctx.path === '/' || ctx.path === '/index.html') {
+      const homepage = ctx.path === '/' || ctx.path === '/index.html';
+      const deliveryTags = [];
+      if (homepage) {
+        const hero = responsiveImage(imageManifest, 'soda.png');
+        if (hero) deliveryTags.push({ tag: 'link', attrs: { rel: 'preload', as: 'image', href: hero.src, imagesrcset: hero.srcset, imagesizes: '(max-width: 760px) 200px, (max-width: 1050px) 240px, 280px', fetchpriority: 'high' }, injectTo: 'head' });
         const products = JSON.parse(readFileSync(path.resolve(__dirname, 'public/catalog.json'), 'utf8')) as Array<{
           id: string; name: string; category: string; weight: string; image: string;
           color: string; word: string; long?: boolean; width: number; height: number;
@@ -31,7 +35,7 @@ export default defineConfig({
         html = html.replace(placeholder, `<script type="application/json" id="uhi-catalog-data">${data}</script><div class="product-grid" id="products">${cards}</div>`);
       }
       html = optimizeHtmlImages(html, imageManifest);
-      return { html, tags: [{ tag: 'script', attrs: { src: '/uhi-analytics.js', defer: true }, injectTo: 'head' }] };
+      return { html, tags: [...deliveryTags, { tag: 'link', attrs: { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }, injectTo: 'head' }, { tag: 'script', attrs: { src: '/uhi-analytics.js', defer: true }, injectTo: 'head' }] };
     },
   }],
   server: {
