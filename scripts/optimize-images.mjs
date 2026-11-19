@@ -45,8 +45,11 @@ export function optimizeHtmlImages(html, manifest) {
     const image = source && responsiveImage(manifest, source[1]);
     if (!image) return tag;
     const sizes = /class="[^"]*\bside\b/.test(tag)
-      ? '(max-width: 600px) 45vw, 300px'
-      : /id="hero-pack"/.test(tag) ? '(max-width: 600px) 75vw, 550px'
+      ? '(max-width: 760px) 150px, (max-width: 1050px) 190px, 220px'
+      : /id="hero-pack"/.test(tag) ? '(max-width: 760px) 200px, (max-width: 1050px) 240px, 280px'
+      : /class="world-image toast-image"/.test(tag) ? '(max-width: 760px) 165px, (max-width: 1050px) 200px, 230px'
+      : /class="world-image"/.test(tag) ? '(max-width: 760px) 135px, (max-width: 1050px) 200px, 170px'
+      : /class="about-image"/.test(tag) ? '(max-width: 760px) 220px, 260px'
       : /class="catalog-image"/.test(tag) ? '(max-width: 600px) 45vw, (max-width: 1000px) 30vw, 280px'
       : source[1] === 'logo.jpg' ? '125px'
       : /friends-v3/.test(source[1]) ? '(max-width: 800px) 100vw, 900px'
