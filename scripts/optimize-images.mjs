@@ -16,9 +16,9 @@ export async function optimizeImages(root) {
     const original = await stat(input);
     if (original.size < 500_000 && filename !== 'logo.jpg') continue;
     const { width } = await sharp(input).metadata();
-    const hash = createHash('sha256').update(await readFile(input)).update('webp-q95-v1').digest('hex').slice(0, 10);
+    const hash = createHash('sha256').update(await readFile(input)).update('webp-q95-v2').digest('hex').slice(0, 10);
     const variants = [];
-    for (const target of [320, 640, 960]) {
+    for (const target of [320, 480, 640, 960]) {
       const actual = Math.min(target, width);
       if (variants.some(item => item.width === actual)) continue;
       const name = `${path.parse(filename).name}-${hash}-${actual}.webp`;
@@ -47,9 +47,10 @@ export function optimizeHtmlImages(html, manifest) {
     const sizes = /class="[^"]*\bside\b/.test(tag)
       ? '(max-width: 600px) 45vw, 300px'
       : /id="hero-pack"/.test(tag) ? '(max-width: 600px) 75vw, 550px'
+      : /class="catalog-image"/.test(tag) ? '(max-width: 600px) 45vw, (max-width: 1000px) 30vw, 280px'
       : source[1] === 'logo.jpg' ? '125px'
       : /friends-v3/.test(source[1]) ? '(max-width: 800px) 100vw, 900px'
-      : '(max-width: 600px) 90vw, 600px';
+      : '(max-width: 600px) 80vw, 600px';
     return tag.replace(/\bsrc="[^"]+"/, `src="${image.src}"`).replace(/>$/, ` srcset="${image.srcset}" sizes="${sizes}">`);
   });
 }
